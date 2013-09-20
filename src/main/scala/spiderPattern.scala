@@ -1,7 +1,13 @@
 package SpiderPattern
 
-import akka.actor.{ActorRef, ActorContext, Props}
+import akka.actor.{Actor, ActorRef, ActorPath, ActorContext, Props}
 import scala.collection.mutable
+import java.util.UUID
+
+
+case class Spider(home: ActorRef, trail: WebTrail = WebTrail())
+case class WebTrail(collected: Set[ActorRef] = Set(), uuid: UUID = UUID.randomUUID())
+case class WebNodeRef(node: ActorRef, in: List[ActorRef], out: List[ActorRef])
 
 
 /**
@@ -10,7 +16,7 @@ import scala.collection.mutable
 *	just isolating the parts we care about from the Akka API.
 **/
 trait Node { actor: Actor =>
-	def send(actorRef: actorRef, m: Any) { actorRef.tell(m) }
+	def send(actorRef: ActorRef, m: Any) { actorRef ! m }
 	def reply(m: Any) { sender ! m }
 	def forward(actorRef: ActorRef, m: Any) { actorRef.forward(m) }
 	def actorOf(props: Props): ActorRef = actor.context.actorOf(props)
