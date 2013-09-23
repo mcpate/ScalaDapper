@@ -31,10 +31,13 @@ trait Diagnostics[Data, Request] extends WebNode[Data, Request] {
 	def now = System.nanoTime()
 }
 
+/**
+*	This is an actual diagnostic data message including the timestamp of when the diagnostic was taken.
+**/
 case class DiagnosticsData[Data](data: Data, timestamp: Long, nodeRef: WebNodeRef)
 
 /**
-*	The below are "concrete" diagnostics and are built upon the above trait and class.
+*	The below are "concrete" diagnostics and are built upon the above trait and case class.
 **/
 case class TimeDataRequest(id: Long)
 
@@ -43,5 +46,19 @@ trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {
 	private var map = Map[Long, Long]()
 	var timeBefore: Long = 0
 
-	
+	def diagnoseBefore: Receive = {
+		case m: HasId => timeBefore = now
+		case _ =>
+	}
+
+	def diagnoseAfter: Receive = {
+		case m: HasId => map = map + ( m.id -> ( now - timeBefore ))
+		case _ =>
+	}
+
+	def collect(req: TimeDataRequest) = map.get( req.id ).map( ( req.id, _ ))
+}
+
+trait HasId {
+	def id: Long
 }

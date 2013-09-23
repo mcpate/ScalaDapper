@@ -27,7 +27,7 @@ trait Node { actor: Actor =>
 *	This is the main trait for tracing. Data and Request are generic therefore any type of
 *	Request for which some type of Data needs to be returned can be plugged in.
 **/
-trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Request] ensures the trait can only be mixed into a class or trait that also mixes in Data & Request //$
+trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Request] ensures the trait can only be mixed into a class or trait that also mixes in Data & Request (like parameters) //$
 
 	// pathways coming into the node
 	protected val in = mutable.Set[ActorRef]()												//$ Protected methods and variables are only accessible by classes or traits that explicitly mix them in //$
