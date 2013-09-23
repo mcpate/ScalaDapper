@@ -21,6 +21,8 @@ trait Node { actor: Actor =>
 	def forward(actorRef: ActorRef, m: Any) { actorRef.forward(m) }
 	def actorOf(props: Props): ActorRef = actor.context.actorOf(props)
 	def actorFor(actorPath: ActorPath): ActorRef = actor.context.actorFor(actorPath)
+	//def actorFor(actorPath: ActorPath): ActorRef = 
+	//def actorFor(path: String): ActorRef = actor.context.actorSelection(path)
 }
 
 /**
@@ -89,23 +91,30 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	
 	def after: Receive
 	
+	// The below case class is used as a workaround to the Type Erasure experienced when trying to match in the "def wrappedReceive"
+	// I was originally having issues with "...! m.isInstanceOf[(Request, Spider)]"  The case class seemed to solve this.
+	// This was a recommended 'lightweight' solution.  An alternative was more complicated "Manifest" classes.
+	case class RequestSpiderHolder(r: Request, s: Spider)
 	def wrappedReceive: Receive = {
-		case m: Any if ! m.isInstanceOf[(Request, Spider)] => {
+		case m: Any if ! m.isInstanceOf[RequestSpiderHolder] => {
 			recordInput(sender)
 			before(m)
 			super.receive(m)
 			after(m)
 		}
 	}
+	
 
 	/**
 	*	Methods used when Spider specific action is envoked.
 	**/
+	// Again, having Erasure issues here causing the need for a container for the erased parameter.  See comments above near "def wrappedReceive".
+	case class RequestHolder(r: Request)
 	def handleRequest: Receive = {
-		// The below case is: (Request, Spider) "if" lastId isn't set (ie it hasn't been visited before)
 		case (req: Request, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {
 			lastId = Some(uuid)
-			// perform unique collection action, sendSpiders out after the other data
+			// perform unique collection action, sendSpiders out after the other data. Note that I am having to cast back to Request
+			// due to matching on RequestHolder above instead of Request.  Damn Erasure.
 			collect(req).map { data => 
 				sendSpiders(ref, data, (req, spider), collected) 
 			}

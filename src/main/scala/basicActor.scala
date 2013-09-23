@@ -1,4 +1,4 @@
-import akka.actor.{Actor, ActorSystem, Props}
+/*import akka.actor.{Actor, ActorSystem, Props}
 import akka.pattern.ask //This allows usage of "?" message sending
 import akka.util.Timeout
 import scala.concurrent.Await
@@ -99,6 +99,6 @@ class SpawnActor(async: Boolean)(implicit val timeout: Timeout) extends Actor {
 			}
 		}	
 	}
-}
+}*/
 
 
