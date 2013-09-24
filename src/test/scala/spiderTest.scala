@@ -55,16 +55,22 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 			def createDiagnostic = new Transformer(printer) with TimingDiagnostics
 
 			// create several actors
-			val actor1 = system.actorOf(Props(createDiagnostic), "t-1")
-			val actor2 = system.actorOf(Props(createDiagnostic), "t-2")
-			val actor3 = system.actorOf(Props(createDiagnostic), "t-3")
+			//val actor1 = system.actorOf(Props(createDiagnostic), "t-1")
+			//val actor2 = system.actorOf(Props(createDiagnostic), "t-2")
+			//val actor3 = system.actorOf(Props(createDiagnostic), "t-3")
 			// create an Iterable to initialize the chosen router with
-			val routees = Vector[ActorRef](actor1, actor2, actor3)
-			//val routees2 = Vector[ActorRef](system.actorOf(Props(createDiagnostic), "t-1a"),
-			//								system.actorOf(Props(createDiagnostic), "t-2a"),
-			//								system.actorOf(Props(createDiagnostic), "t-3a"))	
+			//val routees = Vector[ActorRef](actor1, actor2, actor3)
+
+			val actor4 = system.actorOf(Props[Printer], "t-4")
+			val actor5 = system.actorOf(Props[Printer], "t-5")
+			val actor6 = system.actorOf(Props[Printer], "t-6")
+			val routees2 = Vector[ActorRef](actor4, actor5, actor6)
+			
+
 			// put them in a specific type of router. BroadcastRouter "broadcasts" messages to all actors within.
-			val router = system.actorOf(Props(createDiagnostic).withRouter(
+			val router = system.actorOf(Props[Printer].withRouter(
+				BroadcastRouter(routees = routees2)), "router-to-transformers")
+/*			val router = system.actorOf(Props(createDiagnostic).withRouter(
 				BroadcastRouter(routees = routees)), "router-to-transformers")
 			//val transformerWithRouter = system.actorOf(Props(new Transformer(router) with TimingDiagnostics), "transformer-with-router")
 			//val transformer = system.actorOf(Props(new Transformer(transformerWithRouter) with TimingDiagnostics), "first-transformer")
@@ -100,10 +106,10 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 			}))
 
 			// this is the request for diagnostics data.  It could have been sent to any actor in the web that extends the diagnostics trait.
-			printer ! (TimeDataRequest(1), Spider(returnAddress))
+			printer ! (TimeDataRequest(1), Spider(returnAddress))*/
 
 
-			val timingData = Await.result(future, 5 seconds)
+			//val timingData = Await.result(future, 5 seconds)
 			//timingData.map(_.data._1 must be (1))
 			//println(timingData.mkString("\n"))
 

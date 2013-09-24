@@ -20,7 +20,7 @@ trait Node { actor: Actor =>
 	def reply(m: Any) { sender ! m }
 	def forward(actorRef: ActorRef, m: Any) { actorRef.forward(m) }
 	def actorOf(props: Props): ActorRef = actor.context.actorOf(props)
-	def actorFor(actorPath: ActorPath): ActorRef = actor.context.actorFor(actorPath)
+	//def actorFor(actorPath: ActorPath): ActorRef = actor.context.actorFor(actorPath)
 	//def actorFor(actorPath: ActorPath): ActorRef = 
 	//def actorFor(path: String): ActorRef = actor.context.actorSelection(path)
 }
