@@ -11,6 +11,7 @@ import akka.util.Timeout
 import scala.concurrent.duration._
 import akka.routing.BroadcastRouter
 import scala.language.postfixOps								//$ Allows "1 seconds" vs "1.seconds"
+import akka.pattern.ask
 		
 trait WireTap extends Actor {
 	def listener: ActorRef
@@ -47,6 +48,17 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 	"The spider " should {
 		"collect data about specific events " in {
 
+			val numActors = 100
+
+			/**
+			*	The actors being created in this first part of the test are all a part of forming the following topology
+			*
+			*												actor1	--> printer
+			* transformer --> transformerWithRouter --> 	actor2	--> printer
+			*												...
+			*												actorN  --> printer
+			**/
+
 			// create a printer actor that fires messages to the "testActor" in TestKit
 			val printer = system.actorOf(Props(new Printer with TimingDiagnostics with WireTap {
 				def listener = testActor															//$ testActor is part of TestKit //$
@@ -55,28 +67,19 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 			// function to create new actors (Transformer actors that forward to Printer actors and use TimingDiagnostics)
 			def createDiagnostic = new Transformer(printer) with TimingDiagnostics
 
-			// create several actors
-			//val actor1 = system.actorOf(Props(createDiagnostic), "t-1")
-			//val actor2 = system.actorOf(Props(createDiagnostic), "t-2")
-			//val actor3 = system.actorOf(Props(createDiagnostic), "t-3")
-			// create an Iterable to initialize the chosen router with
-			//val routees = Vector[ActorRef](actor1, actor2, actor3)
-			
-			// put them in a specific type of router. BroadcastRouter "broadcasts" messages to all actors within.
-			//val router = system.actorOf(Props(createDiagnostic).withRouter(
-			//	BroadcastRouter(routees = routees)), "router-to-transformers")
-			//val transformerWithRouter = system.actorOf(Props(new Transformer(router) with TimingDiagnostics), "transformer-with-router")
-			//val transformer = system.actorOf(Props(new Transformer(transformerWithRouter) with TimingDiagnostics), "first-transformer")
-
-			//												actor1	--> print
-			// transformer --> transformerWithRouter --> 	actor2	--> print
-			//												actor3  --> print
-
+			// create a router
 			val router = system.actorOf(Props(createDiagnostic).withRouter(
-				BroadcastRouter(nrOfInstances = 3)), "router")
+				BroadcastRouter(nrOfInstances = numActors)), "router")
 
+			// create transformer to router
 			val transformerWithRouter = system.actorOf(Props(new Transformer(router) with TimingDiagnostics), "transformer-with-router")
+			
+			// create initial transformer to transformer to router.
 			val transformer = system.actorOf(Props(new Transformer(transformerWithRouter) with TimingDiagnostics), "first-transformer")
+
+			/**
+			*	The following starts testing actors
+			*/
 
 			// test printer actor verifying that the TestKit actor is being reached.
 			printer ! SomeMessage(1, "test printer")
@@ -87,8 +90,8 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 			expectMsg(SomeMessage(1, "some text to play with"))
 
 			// create promise/future pair to be used below
-			val p = Promise[Seq[Any]]																				//$ These can be created and used in pairs. This is a hook into the actor eventually finishing.  This way we can hang on to results. //$
-			val future = p.future
+			//val p = Promise[Seq[Any]]																				//$ These can be created and used in pairs. This is a hook into the actor eventually finishing.  This way we can hang on to results. //$
+			//val future = p.future
 
 			// create a return address that the spiders will send diagnostic data to. The case class here is a workaround due to erasure
 			// happening during the match in "receive"
@@ -99,26 +102,32 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 			 		case m: DiagnosticsData[(Long, Long)] =>
 			 			println("got a result")
 			 			results = results :+ m
-			 			if (results.size == 6) p.success(results)								//$ Note that this is a cheat and that "in a real system you would work with what you have at a certain moment in time" //$
+			 		case "Give Me The Results!" => results
 			 	}
 			}))
 
+			
+			Thread.sleep(5 seconds)
+
+			val result = returnAddress ! "Give Me The Results!"
 			// this is the request for diagnostics data.  It could have been sent to any actor in the web that extends the diagnostics trait.
-			printer ! (TimeDataRequest(1), Spider(returnAddress))
+			//val future = printer ? (TimeDataRequest(1), Spider(returnAddress))
+			//val result = Await.result(future, 5 seconds)
 
 
-			val timingData = Await.result(future, 5 seconds)
-			val cl = timingData(0).getClass
-			println("type")
-			println(cl)
+			//val timingData = Await.result(future, 5 seconds)
+			//val cl = timingData(0).getClass
+			//println("type")
+			//println(cl)
 			//timingData.foreach {
 
 				//}
 			//timingData.map(_.data._1 must be (1))
-			println(timingData.mkString("\n"))
+			//println(timingData.mkString("\n"))
 
 
 		}
+
 	}
 
 	override protected def afterAll() {
