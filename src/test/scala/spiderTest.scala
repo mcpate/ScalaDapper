@@ -28,16 +28,15 @@ case class SomeMessage(id: Long, text: String) extends HasId
 class Transformer(next: ActorRef) extends Actor with Node {
 	def receive = {
 		case m: SomeMessage =>
-			println("Transformer received one...")
 			next ! m.copy() 
-		case _ => println("Transformer Actor: case _ match")
+		case m: Any => println(s"Transformer Actor - case Any match: $m")
 	}
 }
 
 class Printer extends Actor {
 	def receive = {
 		case m: SomeMessage => println( m.text )
-		case _ => println("case _ match in Printer Actor")
+		case m: Any => println(s"Printer Actor - case Any match: $m")
 	}
 }
 
@@ -48,7 +47,7 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 	"The spider " should {
 		"collect data about specific events " in {
 
-			val numActors = 100
+			val numActors = 10
 
 			/**
 			*	The actors being created in this first part of the test are all a part of forming the following topology
@@ -90,44 +89,26 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 			expectMsg(SomeMessage(1, "some text to play with"))
 
 			// create promise/future pair to be used below
-			//val p = Promise[Seq[Any]]																				//$ These can be created and used in pairs. This is a hook into the actor eventually finishing.  This way we can hang on to results. //$
-			//val future = p.future
+			val p = Promise[Seq[DiagnosticsData[(Long, Long)]]]																				//$ These can be created and used in pairs. This is a hook into the actor eventually finishing.  This way we can hang on to results. //$
+			val future = p.future
 
-			// create a return address that the spiders will send diagnostic data to. The case class here is a workaround due to erasure
-			// happening during the match in "receive"
-			//case class LongLongHolder(a: DiagnosticsData[(Long, Long)])
+			// create a return address that the spiders will send diagnostic data to.
+			case class DiagnosticsDataEF(diagnosticsData: DiagnosticsData[(Long, Long)]) 
 			val returnAddress = system.actorOf(Props(new Actor {
 			 	var results = List[DiagnosticsData[(Long, Long)]]()
 			 	def receive = {
 			 		case m: DiagnosticsData[(Long, Long)] =>
-			 			println("got a result")
 			 			results = results :+ m
-			 		case "Give Me The Results!" => results
+			 			if (results.size == 6) p.success(results)
 			 	}
 			}))
 
-			
-			Thread.sleep(5 seconds)
-
-			val result = returnAddress ! "Give Me The Results!"
-			// this is the request for diagnostics data.  It could have been sent to any actor in the web that extends the diagnostics trait.
-			//val future = printer ? (TimeDataRequest(1), Spider(returnAddress))
-			//val result = Await.result(future, 5 seconds)
-
-
-			//val timingData = Await.result(future, 5 seconds)
-			//val cl = timingData(0).getClass
-			//println("type")
-			//println(cl)
-			//timingData.foreach {
-
-				//}
-			//timingData.map(_.data._1 must be (1))
-			//println(timingData.mkString("\n"))
-
+			printer ! (TimeDataRequest(1), Spider(returnAddress))
+			val timingData = Await.result(future, 5 seconds)
+			timingData.map(_.data._1 should be (1))
+			println(timingData.mkString("\n"))
 
 		}
-
 	}
 
 	override protected def afterAll() {

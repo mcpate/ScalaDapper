@@ -36,11 +36,16 @@ trait Diagnostics[Data, Request] extends WebNode[Data, Request] {
 **/
 case class DiagnosticsData[Data](data: Data, timestamp: Long, nodeRef: WebNodeRef)
 
+
+
+
 /**
+*	==============================================================================================================
 *	The below are "concrete" diagnostics and are built upon the above trait and case class.
 **/
 case class TimeDataRequest(id: Long)
 
+//												Data          Request
 trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {
 
 	private var map = Map[Long, Long]()
@@ -62,3 +67,4 @@ trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {
 trait HasId {
 	def id: Long
 }
+

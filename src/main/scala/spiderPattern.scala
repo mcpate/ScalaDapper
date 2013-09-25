@@ -4,7 +4,6 @@ import akka.actor.{Actor, ActorRef, ActorPath, ActorContext, Props}
 import scala.collection.mutable
 import java.util.UUID
 
-
 case class Spider(home: ActorRef, trail: WebTrail = WebTrail())
 case class WebTrail(collected: Set[ActorRef] = Set(), uuid: UUID = UUID.randomUUID())
 case class WebNodeRef(node: ActorRef, in: List[ActorRef], out: List[ActorRef])
@@ -84,16 +83,17 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	**/
 	abstract override def receive = handleRequest orElse wrappedReceive						//$ orElse - used when reflecting over whether or not a partial function is defined over supplied argument //$
 	
+	// These are hooks for the diagnostic tasks that will be performed.
 	def before: Receive
-	
 	def after: Receive
 	
 	// The below case class is used as a workaround to the Type Erasure experienced when trying to match in the "def wrappedReceive"
 	// I was originally having issues with "...! m.isInstanceOf[(Request, Spider)]"  The case class seemed to solve this.
-	// This was a recommended 'lightweight' solution.  An alternative was more complicated "Manifest" classes.
-	case class RequestSpiderHolder(r: Request, s: Spider)
+	// This was a recommended 'lightweight' solution.  An alternative was a more complicated "Manifest" class.
+	case class EF(request: Request, spider: Spider)
+	
 	def wrappedReceive: Receive = {
-		case m: Any if ! m.isInstanceOf[RequestSpiderHolder] => {
+		case m: Any if ! m.isInstanceOf[(Request, Spider)] => {
 			recordInput(sender)
 			before(m)
 			super.receive(m)
@@ -105,10 +105,8 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	/**
 	*	Methods used when Spider specific action is envoked.
 	**/
-	// Again, having Erasure issues here causing the need for a container for the erased parameter.  See comments above near "def wrappedReceive".
-	case class RequestHolder(r: Request)
 	def handleRequest: Receive = {
-		case (req: Request, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {
+		case (req: Request, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {          //$ lastId.exists returns true if Option is not empty and funct matches //$
 			lastId = Some(uuid)
 			// perform unique collection action, sendSpiders out after the other data. Note that I am having to cast back to Request
 			// due to matching on RequestHolder above instead of Request.  Damn Erasure.
