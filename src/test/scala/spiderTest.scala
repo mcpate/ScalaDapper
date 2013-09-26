@@ -13,6 +13,25 @@ import akka.routing.BroadcastRouter
 import scala.language.postfixOps								//$ Allows "1 seconds" vs "1.seconds"
 import akka.pattern.ask
 		
+/**
+*	Misc. helper funcitons
+**/
+object helpers {
+
+	def time[X](block: => X): X = {
+	  val t0 = System.nanoTime()
+	  val result = block
+	  val t1 = System.nanoTime()
+	  println("Elapsed time: " + (t1 - t0) + "ns")
+	  result
+	}
+}
+
+/**
+*	Stuff for testing including Actors
+**/
+case class SomeMessage(id: Long, text: String) extends HasId
+
 trait WireTap extends Actor {
 	def listener: ActorRef
 
@@ -23,20 +42,19 @@ trait WireTap extends Actor {
 	}
 }
 
-case class SomeMessage(id: Long, text: String) extends HasId
-
 class Transformer(next: ActorRef) extends Actor with Node {
 	def receive = {
 		case m: SomeMessage =>
 			next ! m.copy() 
-		case m: Any => println(s"Transformer Actor - case Any match: $m")
+		case m: String => next forward m
 	}
 }
 
 class Printer extends Actor {
 	def receive = {
 		case m: SomeMessage => println( m.text )
-		case m: Any => println(s"Printer Actor - case Any match: $m")
+		case m: String => 
+			sender ! "done in printer"
 	}
 }
 
@@ -99,7 +117,7 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 			 	def receive = {
 			 		case m: DiagnosticsData[(Long, Long)] =>
 			 			results = results :+ m
-			 			if (results.size == 6) p.success(results)
+			 			if (results.size == numActors) p.success(results)
 			 	}
 			}))
 
@@ -107,6 +125,30 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with S
 			val timingData = Await.result(future, 5 seconds)
 			timingData.map(_.data._1 should be (1))
 			println(timingData.mkString("\n"))
+
+
+			//====================================================================================
+			// Time to send a message through all actors in the above topology and get a message
+			// back saying that the original message was received.
+			
+			val p2 = Promise[Boolean]
+			val f2 = p2.future
+			
+			val res2 = system.actorOf(Props(new Actor {
+				var results = List[Int]()
+				def receive = {
+					case "done in printer" =>
+					println("message rec")
+					results = results :+ 1
+					if (results.size == numActors/2) p2.success(true)
+				}
+			}))
+
+			val results = helpers.time {
+				transformer.send("are you done", res2)
+				Await.result(f2, 5 seconds)
+			}
+
 
 		}
 	}
