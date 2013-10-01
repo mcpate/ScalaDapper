@@ -67,4 +67,3 @@ trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {
 trait HasId {
 	def id: Long
 }
-
