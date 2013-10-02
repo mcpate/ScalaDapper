@@ -19,6 +19,7 @@ trait Diagnostics[Data, Request] extends WebNode[Data, Request] {
 
 	override def sendSpiders(spiderHome: ActorRef, data: Data, msg: (Request, Spider), collected: Set[ActorRef]) {
 		spiderHome ! DiagnosticsData[Data](data, now, selfNode)
+		println("message sent home")
 		super.sendSpiders(spiderHome, data, msg, collected)	
 	}
 

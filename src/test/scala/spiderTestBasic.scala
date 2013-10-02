@@ -33,28 +33,28 @@ object helpers {
 case class SomeMessage(id: Long, text: String) extends HasId
 
 
-/**
-*	These are the actors that have tracing built in
-**/
-class ForwarderWithTracing(next: ActorRef) extends Actor with Node {
-	def receive = {
-		case m: Any => next ! m
-	}
-}
+// /**
+// *	These are the actors that have tracing built in
+// **/
+// class ForwarderWithTracing(next: ActorRef) extends Actor {
+// 	def receive = {
+// 		case m: Any => next ! m
+// 	}
+// }
 
-class CountingForwarderWithTracing(last: ActorRef) extends Actor with Node {
-	var count = 0
-	def receive = {
-		case m: Any if (count >= 10000) =>
+// class CountingForwarderWithTracing(last: ActorRef) extends Actor {
+// 	var count = 0
+// 	def receive = {
+// 		case m: Any if (count >= 10000) =>
 
-	}
-}
+// 	}
+// }
 
-class PrinterWithTracing extends Actor with Node {
-	def receive = {
-		case m: Any => println(m)
-	}
-}
+// class PrinterWithTracing extends Actor {
+// 	def receive = {
+// 		case m: Any => println(m)
+// 	}
+// }
 
 
 /**
@@ -149,7 +149,7 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 	**/
 	println("\nRunning tracing tests on Node actors but with no Spider action")
 
-	val tracingPrinter = system.actorOf(Props(new Printer with Node with TimingDiagnostics), "tracingPrinter")
+	val tracingPrinter = system.actorOf(Props(new Printer with TimingDiagnostics), "tracingPrinter")
 	val tracingForwarderCounting = system.actorOf(Props(new CountingForwarder(tracingPrinter) with TimingDiagnostics), "tracingForwarderCounting")
 	val tracingForwarder = system.actorOf(Props(new Forwarder(tracingForwarderCounting) with TimingDiagnostics), "tracingForwarder")
 
@@ -182,7 +182,7 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 	**/
 	println("\nRunning tracing tests on Node actors with diagnostic recording but still no spider")
 
-	val tracingPrinterD = system.actorOf(Props(new Printer with Node with TimingDiagnostics), "tracingPrinterD")
+	val tracingPrinterD = system.actorOf(Props(new Printer with TimingDiagnostics), "tracingPrinterD")
 	val tracingForwarderCountingD = system.actorOf(Props(new CountingForwarder(tracingPrinterD) with TimingDiagnostics), "tracingForwarderCountingD")
 	val tracingForwarderD = system.actorOf(Props(new Forwarder(tracingForwarderCountingD) with TimingDiagnostics), "tracingForwarderD")
 
@@ -212,7 +212,7 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 	println("\nRunning tracing tests on Node actors with Spider action in middle of execution")
 
 	// These are essestially the same actors as the previous test. New instances just for clarity.
-	val tracingPrinterLive = system.actorOf(Props(new Printer with Node with TimingDiagnostics), "tracingPrinterLive")
+	val tracingPrinterLive = system.actorOf(Props(new Printer with TimingDiagnostics), "tracingPrinterLive")
 	val tracingForwarderCountingLive = system.actorOf(Props(new CountingForwarder(tracingPrinterLive) with TimingDiagnostics), "tracingForwarderCountingLive")
 	val tracingForwarderLive = system.actorOf(Props(new Forwarder(tracingForwarderCountingLive) with TimingDiagnostics), "tracingForwarderLive")
 
@@ -222,6 +222,7 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 		def receive = {
 			case "size?" => sender ! results.size
 			case m: Any =>
+				println("got a result")
 				results += m
 		}
 	}))

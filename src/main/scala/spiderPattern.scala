@@ -112,7 +112,7 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 			lastId = Some(uuid)
 			// perform unique collection action, sendSpiders out after the other data. Note that I am having to cast back to Request
 			// due to matching on RequestHolder above instead of Request.  Damn Erasure.
-			collect(req).map { data => 
+			collect(req).map { data =>
 				sendSpiders(ref, data, (req, spider), collected) 
 			}
 		}
