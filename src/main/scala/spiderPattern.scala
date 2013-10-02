@@ -92,6 +92,8 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	// This was a recommended 'lightweight' solution.  An alternative was a more complicated "Manifest" class.
 	case class EF(request: Request, spider: Spider)
 	
+	// Note that ALL actors coming in are recorded but before() and after() are only performed if the diagnostic
+	// specifies it.  The TimingDiagnostics only call before and after if the message type extends "HasId"
 	def wrappedReceive: Receive = {
 		case m: Any if ! m.isInstanceOf[(Request, Spider)] => {
 			recordInput(sender)

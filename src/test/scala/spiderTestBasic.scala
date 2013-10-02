@@ -12,6 +12,9 @@ import akka.routing.BroadcastRouter
 import scala.language.postfixOps								//$ Allows "1 seconds" vs "1.seconds"
 import akka.pattern.ask
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
+
 
 object helpers {
 
@@ -25,6 +28,9 @@ object helpers {
 	}
 }
 
+// It seems in the example that HasId is mixed in so that the receive method can match this specific
+// type of message 
+case class SomeMessage(id: Long, text: String) extends HasId
 
 
 /**
@@ -58,6 +64,9 @@ class Forwarder(next: ActorRef) extends Actor {
 	var initialSender: ActorRef = null
 	def receive = {
 		case "Done Counting" => initialSender ! "Done Counting"
+		case m: SomeMessage =>
+			if (initialSender == null) { initialSender = sender }
+			next ! m.copy()
 		case m: Any => 
 			if (initialSender == null) { initialSender = sender }
 			next ! m
@@ -68,6 +77,12 @@ class Forwarder(next: ActorRef) extends Actor {
 class CountingForwarder(last: ActorRef) extends Actor {
 	var count = 0
 	def receive = {
+		case m: SomeMessage if (count >= 10000) =>
+			last ! m.copy()
+			sender ! "Done Counting"
+		case m: SomeMessage =>
+			count += 1
+			sender ! m.copy()
 		case m: Any if (count >= 10000) => 
 			last ! m
 			sender ! "Done Counting"
@@ -93,6 +108,10 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 	implicit val timeout = Timeout(5 seconds)
 	val numTestRuns = 100
 
+
+
+
+
 	/**
 	*	TEST ONE
 	**/
@@ -106,20 +125,21 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 	val basicForwarderAlways = system.actorOf(Props(new Forwarder(basicForwarderCounting)), "basicForwarderAlways")
 
 	// Fires messages back and forth 1000 times with basic actors
-	lazy val basicTest = {
-		new {
-			val future = basicForwarderAlways ? "Some random text..."
-			val result = Await.result(future, 3 seconds)
-		}
+	var basicTest = {
+		var future = basicForwarderAlways ? "Some random text..."
+		var result = Await.result(future, 3 seconds)
+		future
 	}
 
-	var timesOne = new ListBuffer[Long]()
+	var timeOne = new ListBuffer[Long]()
 	for (i <- 1 to numTestRuns) {
-		val (basicTestResult, basicTestTime) = helpers.time { basicTest }
-		timesOne += basicTestTime
+		var (basicTestResult, basicTestTime) = helpers.time { basicTest }
+		timeOne += basicTestTime
 	}
-	println("num results found: " + timesOne.length)
-	println("average times for tests: " + ( (timesOne.reduceLeft(_+_)) / (timesOne.length - 1) ) + "ns")
+	println("num results found: " + timeOne.length)
+	println("average times for tests: " + ( (timeOne.reduceLeft(_+_)) / (timeOne.length) ) + "ns")
+
+
 
 
 
@@ -129,26 +149,59 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 	**/
 	println("\nRunning tracing tests on Node actors but with no Spider action")
 
-	val tracingPrinter = system.actorOf(Props(new Printer with Node), "tracingPrinter")
-	val tracingForwarderCounting = system.actorOf(Props(new CountingForwarder(tracingPrinter) with Node), "tracingForwarderCounting")
-	val tracingForwarder = system.actorOf(Props(new Forwarder(tracingForwarderCounting) with Node), "tracingForwarder")
+	val tracingPrinter = system.actorOf(Props(new Printer with Node with TimingDiagnostics), "tracingPrinter")
+	val tracingForwarderCounting = system.actorOf(Props(new CountingForwarder(tracingPrinter) with TimingDiagnostics), "tracingForwarderCounting")
+	val tracingForwarder = system.actorOf(Props(new Forwarder(tracingForwarderCounting) with TimingDiagnostics), "tracingForwarder")
 
+	
 	// Same as above test only this time on actors that mix in the logging trait.  Note that no spiders are being
 	// sent.  This only tests the time for the messages to get through the system
-	lazy val tracingTest = {
-		new {
-			val future = tracingForwarder ? "Some random text..."
-			val result = Await.result(future, 3 seconds)
-		}
+	var tracingTest = {
+		var future = tracingForwarder ? "Some random text..."
+		var result = Await.result(future, 3 seconds)
+		future
 	}
 
-	var timesTwo = new ListBuffer[Long]()
+	
+	var timeTwo = new ListBuffer[Long]()
 	for (i <- 1 to numTestRuns) {
-		val (tracingTestResult, tracingTestTime) = helpers.time { tracingTest }
-		timesTwo += tracingTestTime
+		var  (tracingTestResult, tracingTestTime) = helpers.time { tracingTest }
+		timeTwo += tracingTestTime
 	}
-	println("num results found: " + timesTwo.length)
-	println("average times for tests: " + ( (timesTwo.reduceLeft(_+_)) / (timesTwo.length - 1) ) + "ns")
+	
+	println("num results found: " + timeTwo.length)
+	println("average times for tests: " + ( (timeTwo.reduceLeft(_+_)) / (timeTwo.length) ) + "ns")
+
+
+
+
+
+
+	/**
+	*	TEST TWO A
+	**/
+	println("\nRunning tracing tests on Node actors with diagnostic recording but still no spider")
+
+	val tracingPrinterD = system.actorOf(Props(new Printer with Node with TimingDiagnostics), "tracingPrinterD")
+	val tracingForwarderCountingD = system.actorOf(Props(new CountingForwarder(tracingPrinterD) with TimingDiagnostics), "tracingForwarderCountingD")
+	val tracingForwarderD = system.actorOf(Props(new Forwarder(tracingForwarderCountingD) with TimingDiagnostics), "tracingForwarderD")
+
+	var tracingTestD = {
+		var future = tracingForwarderD ? SomeMessage(1, "Some random message...")
+		val result = Await.result(future, 3 seconds)
+		future
+	}
+
+	var timeTwoA = new ListBuffer[Long]()
+	for (i <- 1 to numTestRuns) {
+		var (tracingTestResult, tracingTestTime) = helpers.time { tracingTestD }
+		timeTwoA += tracingTestTime
+	}
+
+	println("num results found: " + timeTwoA.length)
+	println("average times for tests: " + ( (timeTwoA.reduceLeft(_+_)) / (timeTwoA.length) ) + "ns")
+
+
 
 
 
@@ -158,8 +211,43 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 	**/
 	println("\nRunning tracing tests on Node actors with Spider action in middle of execution")
 
+	// These are essestially the same actors as the previous test. New instances just for clarity.
+	val tracingPrinterLive = system.actorOf(Props(new Printer with Node with TimingDiagnostics), "tracingPrinterLive")
+	val tracingForwarderCountingLive = system.actorOf(Props(new CountingForwarder(tracingPrinterLive) with TimingDiagnostics), "tracingForwarderCountingLive")
+	val tracingForwarderLive = system.actorOf(Props(new Forwarder(tracingForwarderCountingLive) with TimingDiagnostics), "tracingForwarderLive")
 
-	
+
+	val returnAddress = system.actorOf(Props(new Actor {
+		var results = ListBuffer[Any]()
+		def receive = {
+			case "size?" => sender ! results.size
+			case m: Any =>
+				results += m
+		}
+	}))
+
+
+	var tracingTestLive = {
+		var future = tracingForwarderLive ? (SomeMessage(2, "Some random text..."))
+		tracingPrinterLive ! (TimeDataRequest(2), Spider(returnAddress))
+		var result = Await.result(future, 3 seconds)
+		future
+	}
+
+
+	var timeThree = new ListBuffer[Long]()
+	for (i <- 1 to numTestRuns) {	
+		var (tracingTestLiveResult, tracingTestLiveTime) = helpers.time { tracingTestLive }
+		timeThree += tracingTestLiveTime
+	}
+
+	println("num results found: " + timeThree.length)
+	println("average times for tests: " + ( (timeThree.reduceLeft(_+_)) / (timeThree.length) ) + "ns")
+	val fu = returnAddress ? "size?"
+    fu.onComplete {
+	 	case Success(value) => println("Got the callback with value: " + value)
+	  	case Failure(e) => e.printStackTrace
+	} 
 
 	// Shut down 
 	override protected def afterAll() {
