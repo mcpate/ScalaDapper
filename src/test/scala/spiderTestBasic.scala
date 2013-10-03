@@ -32,35 +32,10 @@ object helpers {
 // type of message 
 case class SomeMessage(id: Long, text: String) extends HasId
 
-
-// /**
-// *	These are the actors that have tracing built in
-// **/
-// class ForwarderWithTracing(next: ActorRef) extends Actor {
-// 	def receive = {
-// 		case m: Any => next ! m
-// 	}
-// }
-
-// class CountingForwarderWithTracing(last: ActorRef) extends Actor {
-// 	var count = 0
-// 	def receive = {
-// 		case m: Any if (count >= 10000) =>
-
-// 	}
-// }
-
-// class PrinterWithTracing extends Actor {
-// 	def receive = {
-// 		case m: Any => println(m)
-// 	}
-// }
-
-
 /**
 *	These are basic actors with no tracing
 **/
-class Forwarder(next: ActorRef) extends Actor {
+class Forwarder(next: ActorRef) extends Actor with Node {
 	var initialSender: ActorRef = null
 	def receive = {
 		case "Done Counting" => initialSender ! "Done Counting"
@@ -74,7 +49,7 @@ class Forwarder(next: ActorRef) extends Actor {
 }
 
 //todo: figure out if m.copy() is the way to go here (vs. just "m")
-class CountingForwarder(last: ActorRef) extends Actor {
+class CountingForwarder(last: ActorRef) extends Actor with Node {
 	var count = 0
 	def receive = {
 		case m: SomeMessage if (count >= 10000) =>
@@ -94,7 +69,9 @@ class CountingForwarder(last: ActorRef) extends Actor {
 
 class Printer extends Actor {
 	def receive = {
-		case m: Any => println(m)
+		case m: String => println(m)
+		case m: SomeMessage => println(m.text)
+		case _ =>
 	}
 }
 
@@ -227,28 +204,28 @@ class TimingTest extends TestKit(ActorSystem("Spider")) with WordSpecLike with S
 		}
 	}))
 
-
-	var tracingTestLive = {
-		var future = tracingForwarderLive ? (SomeMessage(2, "Some random text..."))
-		tracingPrinterLive ! (TimeDataRequest(2), Spider(returnAddress))
-		var result = Await.result(future, 3 seconds)
-		future
-	}
+	tracingForwarderLive ! (Spider(returnAddress))
 
 
-	var timeThree = new ListBuffer[Long]()
-	for (i <- 1 to numTestRuns) {	
-		var (tracingTestLiveResult, tracingTestLiveTime) = helpers.time { tracingTestLive }
-		timeThree += tracingTestLiveTime
-	}
+	// var tracingTestLive = {
+	// 	var future = tracingForwarderLive ? (SomeMessage(2, "Some random text..."))
+	// 	tracingForwarderLive ! (TimeDataRequest(2), Spider(returnAddress))
+	// 	var result = Await.result(future, 3 seconds)
+	// }
 
-	println("num results found: " + timeThree.length)
-	println("average times for tests: " + ( (timeThree.reduceLeft(_+_)) / (timeThree.length) ) + "ns")
-	val fu = returnAddress ? "size?"
-    fu.onComplete {
-	 	case Success(value) => println("Got the callback with value: " + value)
-	  	case Failure(e) => e.printStackTrace
-	} 
+	// var timeThree = new ListBuffer[Long]()
+	// for (i <- 1 to numTestRuns) {	
+	// 	var (tracingTestLiveResult, tracingTestLiveTime) = helpers.time { tracingTestLive }
+	// 	timeThree += tracingTestLiveTime
+	// }
+
+	// println("num results found: " + timeThree.length)
+	// println("average times for tests: " + ( (timeThree.reduceLeft(_+_)) / (timeThree.length) ) + "ns")
+	// val fu = returnAddress ? "size?"
+ //    fu.onComplete {
+	//  	case Success(value) => println("Got the callback with value: " + value)
+	//   	case Failure(e) => e.printStackTrace
+	// } 
 
 	// Shut down 
 	override protected def afterAll() {

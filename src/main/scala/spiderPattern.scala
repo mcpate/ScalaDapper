@@ -25,7 +25,7 @@ trait Node { actor: Actor =>
 *	This is the main trait for tracing. Data and Request are generic therefore any type of
 *	Request for which some type of Data needs to be returned can be plugged in.
 **/
-trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Request] ensures the trait can only be mixed into a class or trait that also mixes in Data & Request (like parameters) //$
+trait WebNode[Data] extends Actor with Node {										//$ [Data, Request] ensures the trait can only be mixed into a class or trait that also mixes in Data & Request (like parameters) //$
 
 	// pathways coming into the node
 	protected val in = mutable.Set[ActorRef]()												//$ Protected methods and variables are only accessible by classes or traits that explicitly mix them in //$
@@ -37,7 +37,7 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	// once a spider has been here so that it isn't repeatedly analyzed.
 	protected var lastId: Option[UUID] = None
 
-	def collect(req: Request): Option[Data]													//$ This will return Some[Data] or None //$
+	def collection: Option[Data]													//$ This will return Some[Data] or None //$
 
 	def selfNode = WebNodeRef(self, in.toList, out.toList)
 
@@ -89,13 +89,12 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	
 	// The below case class is used as a workaround to the Type Erasure experienced when trying to match in the "def wrappedReceive"
 	// I was originally having issues with "...! m.isInstanceOf[(Request, Spider)]"  The case class seemed to solve this.
-	// This was a recommended 'lightweight' solution.  An alternative was a more complicated "Manifest" class.
-	case class EF(request: Request, spider: Spider)
-	
+	// This was a recommended 'lightweight' solution.  An alternative was a more complicated "Manifest" class.	
+
 	// Note that ALL actors coming in are recorded but before() and after() are only performed if the diagnostic
 	// specifies it.  The TimingDiagnostics only call before and after if the message type extends "HasId"
 	def wrappedReceive: Receive = {
-		case m: Any if ! m.isInstanceOf[(Request, Spider)] => {
+		case m: Any if ! m.isInstanceOf[Spider] => {
 			recordInput(sender)
 			before(m)
 			super.receive(m)
@@ -107,23 +106,28 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	/**
 	*	Methods used when Spider specific action is envoked.
 	**/
+	
 	def handleRequest: Receive = {
-		case (req: Request, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {          //$ lastId.exists returns true if Option is not empty and funct matches //$
-			lastId = Some(uuid)
-			// perform unique collection action, sendSpiders out after the other data. Note that I am having to cast back to Request
-			// due to matching on RequestHolder above instead of Request.  Damn Erasure.
-			collect(req).map { data =>
-				sendSpiders(ref, data, (req, spider), collected) 
-			}
+		// If message is a Spider and lastId of this node doesn't exist in Spider's trail - this might be place for optimization
+		case m: Spider if ! lastId.exists( _ == m.trail.uuid ) => {	
+			println("handle request")
+			// set lastId so we know this node as been visited by the spider
+			lastId = Some(m.trail.uuid)
+			//todo: figure out collection method
+			collection.map { data =>
+		  		sendSpiders(m.home, data, spi, spi.trail.collected)
+		 	}
 		}
 	}
+	
 
-	def sendSpiders(ref: ActorRef, data: Data, msg: (Request, Spider), collected: Set[ActorRef]) {
-		val (request, spider) = msg
+	def sendSpiders(ref: ActorRef, data: Data, spi: Spider, collected: Set[ActorRef]) {
+		val spider = spi
 		val newTrail = spider.trail.copy( collected = collected + self )											//$ update trail (get new trail) by adding self //$
 		val newSpider = spider.copy( trail = newTrail )
-		in.filterNot( in => collected.contains(in) ).foreach ( _ ! (request, newSpider) )							//$ filter on those that "don't" match
-		out.filterNot( out => collected.contains(out) ).foreach ( _ ! (request, newSpider) )
+		// If the incoming/outgoing ActorRefs (in/out) have not been collected, send a request to those actors 
+		in.filterNot( in => collected.contains(in) ).foreach ( _ ! newSpider )							//$ filter on those that "don't" match
+		out.filterNot( out => collected.contains(out) ).foreach ( _ ! newSpider )
 	}
 
 }

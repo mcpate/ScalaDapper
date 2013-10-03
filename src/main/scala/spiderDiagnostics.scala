@@ -3,6 +3,7 @@ package SpiderDiagnostics
 
 import SpiderPattern._
 import akka.actor.{ActorRef}
+import java.util.UUID
 
 /**
 *	The below contains the various diagnostics to be used with the Package SpiderPattern.
@@ -10,32 +11,62 @@ import akka.actor.{ActorRef}
 *	to include.
 **/
 
+case class TracedMessage(id: UUID, originalMessage: Any)
+
+// This is a wrapper for the data being collected and provides a common format for data being sent "home".
+case class DiagnosticsData(uuid: UUID, overallTime: Long, timestamp: Long, nodeRef: WebNodeRef)
+
+
 /**
 *	This trait is a general diagnostic trait. It overrides methods in SpiderPattern concerned with
 *	data collection.  It fires messages of type DiagnosticData which is a generic class meant to 
 *	contain the data chunk you want sent back to "spider home".
 **/ 
-trait Diagnostics[Data, Request] extends WebNode[Data, Request] {
+trait Diagnostics extends WebNode[(UUID, Long)] {
 
-	override def sendSpiders(spiderHome: ActorRef, data: Data, msg: (Request, Spider), collected: Set[ActorRef]) {
-		spiderHome ! DiagnosticsData[Data](data, now, selfNode)
+	// Timing metrics, UUID of Traced message matched to time it took for message to process
+	private var map = Map[UUID, Long]()
+	var timeBefore: Long = 0
+
+	// Used for deciding when to create a "traced" message vs. leaving the message as is
+	//val sampleRate = 10
+	//var msgCount = 0
+
+	override def sendSpiders(spiderHome: ActorRef, data: (UUID, Long), spi: Spider, collected: Set[ActorRef]) {
+		spiderHome ! DiagnosticsData(data._1, data._2, now, selfNode)
 		println("message sent home")
-		super.sendSpiders(spiderHome, data, msg, collected)	
+		super.sendSpiders(spiderHome, data, spi, collected)	
 	}
 
-	override def before = diagnoseBefore
-	override def after = diagnoseAfter
+	// Check if a traced message or if it should be.  If so take metric (starting time).
+	override def before: Receive = {
+		// This message is being traced.  Take initial timing metric.
+		case TracedMessage => 
+			timeBefore = now
+			//msgCount += 1
+		// Message isn't traced but should be, return traced message and record metric
+		case m: Any => //if (msgCount > sampleRate && msgCount % sampleRate == 0) => 
+			sender ! TracedMessage(UUID.randomUUID(), m)
+			timeBefore = now
+			//msgCount += 1
+		case _ => //msgCount += 1
+	}
 
-	def diagnoseBefore: Receive
-	def diagnoseAfter: Receive
+	// If this is a traced message store (map) the message's UUID to "now - timeBefore"
+	override def after: Receive = {
+		case TracedMessage(id, message) => map = map + ( id -> ( now - timeBefore ))
+		case _ =>
+	} 
+	
+	def collection = {
+		var toReturn: Option[(UUID, Long)] = None
+		map.foreach { _ =>
+			toReturn = toReturn ++ _
+		}
+	}
 
 	def now = System.nanoTime()
 }
-
-/**
-*	This is an actual diagnostic data message including the timestamp of when the diagnostic was taken.
-**/
-case class DiagnosticsData[Data](data: Data, timestamp: Long, nodeRef: WebNodeRef)
 
 
 
@@ -44,27 +75,27 @@ case class DiagnosticsData[Data](data: Data, timestamp: Long, nodeRef: WebNodeRe
 *	==============================================================================================================
 *	The below are "concrete" diagnostics and are built upon the above trait and case class.
 **/
-case class TimeDataRequest(id: Long)
 
-//												Data          Request
-trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {
+// case class TimeDataRequest(id: Long)
 
-	private var map = Map[Long, Long]()
-	var timeBefore: Long = 0
+// trait TimingDiagnostics extends Diagnostics[(Long, Long)] {
 
-	def diagnoseBefore: Receive = {
-		case m: HasId => timeBefore = now
-		case _ =>
-	}
+// 	private var map = Map[Long, Long]()
+// 	var timeBefore: Long = 0
 
-	def diagnoseAfter: Receive = {
-		case m: HasId => map = map + ( m.id -> ( now - timeBefore ))
-		case _ =>
-	}
+// 	def diagnoseBefore: Receive = {
+// 		case m: HasId => timeBefore = now
+// 		case _ =>
+// 	}
 
-	def collect(req: TimeDataRequest) = map.get( req.id ).map( ( req.id, _ ))
-}
+// 	def diagnoseAfter: Receive = {
+// 		case m: HasId => map = map + ( m.id -> ( now - timeBefore ))
+// 		case _ =>
+// 	}
 
-trait HasId {
-	def id: Long
-}
+// 	def collect(req: TimeDataRequest) = map.get( req.id ).map( ( req.id, _ ))
+// }
+
+// trait HasId {
+// 	def id: Long
+// }
