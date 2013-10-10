@@ -86,11 +86,11 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	abstract override def receive = handleRequest orElse wrappedReceive						//$ orElse - used when reflecting over whether or not a partial function is defined over supplied argument //$
 	
 	def before: Receive
-	
 	def after: Receive
 	
+	case class RSWrap(req: Request, spi: Spider)
 	def wrappedReceive: Receive = {
-		case m: Any if ! m.isInstanceOf[(Request, Spider)] => {
+		case m: Any if ! m.isInstanceOf[RSWrap] => {
 			recordInput(sender)
 			before(m)
 			super.receive(m)
@@ -103,12 +103,26 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	**/
 	def handleRequest: Receive = {
 		// The below case is: (Request, Spider) "if" lastId isn't set (ie it hasn't been visited before)
-		case (req: Request, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {
-			lastId = Some(uuid)
-			// perform unique collection action, sendSpiders out after the other data
-			collect(req).map { data => 
-				sendSpiders(ref, data, (req, spider), collected) 
+		case m: RSWrap if !lastId.exists( _ == m.spi.trail.uuid ) => {
+			println("got spider request")
+			lastId = Some(m.spi.trail.uuid)
+			collect(m.req).map { data =>
+				sendSpiders(m.spi.home, data, (m.req, m.spi), m.spi.trail.collected) }
 			}
+		case (req: Any, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {
+			lastId = Some(uuid)
+			println("got a spider request")
+			// perform unique collection action, sendSpiders out after the other data
+			val reqCast = req.asInstanceOf[Request]
+			collect(reqCast).map { data => 
+				sendSpiders(ref, data, (reqCast, spider), collected) 
+			}
+		// case (req: Request, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {
+		// 	lastId = Some(uuid)
+		// 	// perform unique collection action, sendSpiders out after the other data
+		// 	collect(req).map { data => 
+		// 		sendSpiders(ref, data, (req, spider), collected) 
+		// 	}
 		}
 	}
 

@@ -31,6 +31,9 @@ trait Diagnostics[Data, Request] extends WebNode[Data, Request] {
 	def now = System.nanoTime()
 }
 
+
+
+
 /**
 *	This is an actual diagnostic data message including the timestamp of when the diagnostic was taken.
 **/
