@@ -15,53 +15,51 @@ import akka.actor.{ActorRef}
 *	data collection.  It fires messages of type DiagnosticData which is a generic class meant to 
 *	contain the data chunk you want sent back to "spider home".
 **/ 
-trait Diagnostics[Data, Request] extends WebNode[Data, Request] {
+// trait Diagnostics[Data, TracedMessage, TopicOrActorRef] extends WebNode[Data, TracedMessage, Topi] {
 
-	override def sendSpiders(spiderHome: ActorRef, data: Data, msg: (Request, Spider), collected: Set[ActorRef]) {
-		spiderHome ! DiagnosticsData[Data](data, now, selfNode)
-		super.sendSpiders(spiderHome, data, msg, collected)	
-	}
+// 	// override def sendSpiders(spiderHome: ActorRef, data: Data, msg: (Request, Spider), collected: Set[ActorRef]) {
+// 	// 	spiderHome ! DiagnosticsData[Data](data, now, selfNode)
+// 	// 	super.sendSpiders(spiderHome, data, msg, collected)	
+// 	// }
 
-	override def before = diagnoseBefore
-	override def after = diagnoseAfter
+// 	override def before = diagnoseBefore
+// 	override def after = diagnoseAfter
 
-	def diagnoseBefore: Receive
-	def diagnoseAfter: Receive
+// 	def diagnoseBefore: Receive
+// 	def diagnoseAfter: Receive
 
-	def now = System.nanoTime()
-}
-
-
+// 	def now = System.nanoTime()
+// }
 
 
-/**
-*	This is an actual diagnostic data message including the timestamp of when the diagnostic was taken.
-**/
-case class DiagnosticsData[Data](data: Data, timestamp: Long, nodeRef: WebNodeRef)
+
 
 /**
 *	The below are "concrete" diagnostics and are built upon the above trait and case class.
 **/
-case class TimeDataRequest(id: Long)
+//case class TimeDataRequest(id: Long)
 
-trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {
+case class TracedMessage(id: Long, msg: String)
 
-	private var map = Map[Long, Long]()
+case class DiagnosticsData(data: (Long, Long), timestamp: Long, nodeRef: WebNodeRef)
+
+trait TimingDiagnostics[TopicOrActorRef] extends WebNode[DiagnosticsData, TracedMessage, TopicOrActorRef] {
+
 	var timeBefore: Long = 0
+	var totalTime: Long = 0
+	var msgId: Long = 0
 
-	def diagnoseBefore: Receive = {
-		case m: HasId => timeBefore = now
-		case _ =>
+	def now = System.nanoTime()
+
+	override def before: Receive = {
+		case _ => timeBefore = now
 	}
 
-	def diagnoseAfter: Receive = {
-		case m: HasId => map = map + ( m.id -> ( now - timeBefore ))
-		case _ =>
+	override def after: Receive = {
+		case m: TracedMessage => 
+			totalTime = ( now - timeBefore )	
+			msgId = m.id
 	}
 
-	def collect(req: TimeDataRequest) = map.get( req.id ).map( ( req.id, _ ))
-}
-
-trait HasId {
-	def id: Long
+	def collection = Some(DiagnosticsData(( msgId, totalTime ), now, selfNode))
 }

@@ -27,7 +27,7 @@ trait Node { actor: Actor =>
 *	This is the main trait for tracing. Data and Request are generic therefore any type of
 *	Request for which some type of Data needs to be returned can be plugged in.
 **/
-trait WebNode[Data, TracedMessage, TopicOrActorRef] extends Actor with Node {										
+trait WebNode[Data, TracedMessage] extends Actor with Node {										
 
 	// pathways coming into the node
 	protected val in = mutable.Set[ActorRef]()												
@@ -86,6 +86,7 @@ trait WebNode[Data, TracedMessage, TopicOrActorRef] extends Actor with Node {
 	
 	def before: Receive
 	def after: Receive
+	def report: Receive
 	
 	def wrappedReceive: Receive = {
 		// If it's a traced message then record metrics
@@ -94,7 +95,7 @@ trait WebNode[Data, TracedMessage, TopicOrActorRef] extends Actor with Node {
 			before(m)
 			super.receive(m) //if super sends (or anyone does) outbound actorref's are recorded in overridden methods above
 			after(m)
-			TopicOrActorRef ! collection
+			report(m)
 		}
 		// If it's a normal message then just pass it up
 		case m: Any => {
@@ -104,6 +105,7 @@ trait WebNode[Data, TracedMessage, TopicOrActorRef] extends Actor with Node {
 			//after(m)
 		}
 	}
+}
 
 	// /**
 	// *	Methods used when Spider specific action is envoked.
