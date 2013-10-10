@@ -111,8 +111,7 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 			}
 		case (req: Any, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {
 			lastId = Some(uuid)
-			println("got a spider request")
-			// perform unique collection action, sendSpiders out after the other data
+ 			// perform unique collection action, sendSpiders out after the other data
 			val reqCast = req.asInstanceOf[Request]
 			collect(reqCast).map { data => 
 				sendSpiders(ref, data, (reqCast, spider), collected) 
