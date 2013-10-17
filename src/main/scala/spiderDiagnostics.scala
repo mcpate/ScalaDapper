@@ -3,6 +3,8 @@ package SpiderDiagnostics
 
 import SpiderPattern._
 import akka.actor.{ActorRef}
+import java.util.UUID
+
 
 /**
 *	The below contains the various diagnostics to be used with the Package SpiderPattern.
@@ -42,6 +44,8 @@ case class DiagnosticsData[Data](data: Data, timestamp: Long, nodeRef: WebNodeRe
 /**
 *	The below are "concrete" diagnostics and are built upon the above trait and case class.
 **/
+case class TraceType(uuid: UUID, data: Any)
+
 case class TimeDataRequest(id: Long)
 
 trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {

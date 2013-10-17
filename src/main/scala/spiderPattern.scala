@@ -8,8 +8,7 @@ import java.util.UUID
 case class Spider(home: ActorRef, trail: WebTrail = WebTrail())
 case class WebTrail(collected: Set[ActorRef] = Set(), uuid: UUID = UUID.randomUUID())
 case class WebNodeRef(node: ActorRef, in: List[ActorRef], out: List[ActorRef])
-
-
+case class TraceType(uuid: UUID, msg: Any)
 /**
 *	We want to override Akka's default methods but since we don't have access
 *	to all pieces of the classes (ActorRef, ActorContext) involved, we're instead
@@ -90,6 +89,8 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	
 	case class RSWrap(req: Request, spi: Spider)
 	def wrappedReceive: Receive = {
+		case m: Any if m.isInstanceOf[TraceType] =>
+			println("\ntracetype found!!\n")
 		case m: Any if ! m.isInstanceOf[RSWrap] => {
 			recordInput(sender)
 			before(m)

@@ -13,7 +13,7 @@ import akka.routing.BroadcastRouter
 import scala.language.postfixOps								//$ Allows "1 seconds" vs "1.seconds"
 import scala.collection.mutable.ListBuffer
 import akka.pattern.ask
-
+import java.util.UUID
 
 		
 object helpers {
@@ -193,6 +193,15 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with M
 
 	println("num results found: " + timeTwo.length)
 	println("average times for tests: " + ((timeTwo.reduceLeft(_+_)) / (timeTwo.length)) + "ns")
+
+	println("\nFinal Test\n")
+	val anotherTrace = system.actorOf(Props[Printer], "anotherTrace")
+	def createDiagnostic = new Forwarder(anotherTrace) with TimingDiagnostics
+	val anotherAnotherTrace = system.actorOf(Props(createDiagnostic), "abcdef")
+	case class TraceType(uuid: UUID, msg: Any)
+	anotherAnotherTrace ! (TraceType(UUID.randomUUID(), "hello"))
+
+
 
 
 }
