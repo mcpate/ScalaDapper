@@ -1,5 +1,7 @@
 package SpiderPattern
-
+import TraceType._
+import TraceBuilder._
+import TraceCollector.{TraceCollector, TraceCollectorMessages}
 import akka.actor.{Actor, ActorRef, ActorPath, ActorContext, Props}
 import scala.collection.mutable
 import java.util.UUID
@@ -8,7 +10,6 @@ import java.util.UUID
 case class Spider(home: ActorRef, trail: WebTrail = WebTrail())
 case class WebTrail(collected: Set[ActorRef] = Set(), uuid: UUID = UUID.randomUUID())
 case class WebNodeRef(node: ActorRef, in: List[ActorRef], out: List[ActorRef])
-case class TraceType(uuid: UUID, msg: Any)
 /**
 *	We want to override Akka's default methods but since we don't have access
 *	to all pieces of the classes (ActorRef, ActorContext) involved, we're instead
@@ -26,7 +27,15 @@ trait Node { actor: Actor =>
 *	This is the main trait for tracing. Data and Request are generic therefore any type of
 *	Request for which some type of Data needs to be returned can be plugged in.
 **/
-trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Request] ensures the trait can only be mixed into a class or trait that also mixes in Data & Request (like parameters) //$
+trait WebNode extends Actor with Node {	
+
+	import TraceCollectorMessages._
+
+	protected val collector = context.actorOf(Props[TraceCollector], "collector")
+
+	protected val traceBuilder = TraceBuilder(10000)
+
+	protected val selfRef = self
 
 	// pathways coming into the node
 	protected val in = mutable.Set[ActorRef]()												//$ Protected methods and variables are only accessible by classes or traits that explicitly mix them in //$
@@ -34,13 +43,6 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 	// pathways going out of the node
 	protected val out = mutable.Set[ActorRef]()
 
-	// used to only handle a request once that travels through the web. This is set
-	// once a spider has been here so that it isn't repeatedly analyzed.
-	protected var lastId: Option[UUID] = None
-
-	def collect(req: Request): Option[Data]													//$ This will return Some[Data] or None //$
-
-	def selfNode = WebNodeRef(self, in.toList, out.toList)
 
 	/**
 	*	The following 4 methods override those defined in trait Node.
@@ -78,60 +80,41 @@ trait WebNode[Data, Request] extends Actor with Node {										//$ [Data, Reque
 		in.add(actorRef)
 	}
 
+
 	/**
 	*	The following are used for wrapping whatever "receive" is defined within the actor
 	*	receive first tries to handleRequest (Spider action). If that doesn't catch wrappedReceive is called.
 	**/
-	abstract override def receive = handleRequest orElse wrappedReceive						//$ orElse - used when reflecting over whether or not a partial function is defined over supplied argument //$
+	abstract override def receive = wrappedReceive						
 	
-	def before: Receive
-	def after: Receive
 	
-	case class RSWrap(req: Request, spi: Spider)
+	//case class RSWrap(req: Request, spi: Spider)
 	def wrappedReceive: Receive = {
-		case m: Any if m.isInstanceOf[TraceType] =>
-			println("\ntracetype found!!\n")
-		case m: Any if ! m.isInstanceOf[RSWrap] => {
-			recordInput(sender)
-			before(m)
-			super.receive(m)
-			after(m)
-		}
+		case m: TraceType if m.sampled == true => handleTrace(sender, selfRef, m, now)
+		case m: TraceType => super.receive(m.msg)
+		case m: Any => 
+			val tracedMsg = traceBuilder.buildTrace(m)
+			handleTrace(sender, selfRef, tracedMsg, now)
 	}
 
-	/**
-	*	Methods used when Spider specific action is envoked.
-	**/
-	def handleRequest: Receive = {
-		// The below case is: (Request, Spider) "if" lastId isn't set (ie it hasn't been visited before)
-		case m: RSWrap if !lastId.exists( _ == m.spi.trail.uuid ) => {
-			println("got spider request")
-			lastId = Some(m.spi.trail.uuid)
-			collect(m.req).map { data =>
-				sendSpiders(m.spi.home, data, (m.req, m.spi), m.spi.trail.collected) }
-			}
-		case (req: Any, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {
-			lastId = Some(uuid)
- 			// perform unique collection action, sendSpiders out after the other data
-			val reqCast = req.asInstanceOf[Request]
-			collect(reqCast).map { data => 
-				sendSpiders(ref, data, (reqCast, spider), collected) 
-			}
-		// case (req: Request, spider @ Spider(ref, WebTrail(collected, uuid))) if !lastId.exists( _ == uuid ) => {
-		// 	lastId = Some(uuid)
-		// 	// perform unique collection action, sendSpiders out after the other data
-		// 	collect(req).map { data => 
-		// 		sendSpiders(ref, data, (req, spider), collected) 
-		// 	}
-		}
+
+	def synchronousDiagnostics(msg: TraceType): Long = {
+		val start = now
+		super.receive(msg.msg)
+		val end = now - start
+		end
 	}
 
-	def sendSpiders(ref: ActorRef, data: Data, msg: (Request, Spider), collected: Set[ActorRef]) {
-		val (request, spider) = msg
-		val newTrail = spider.trail.copy( collected = collected + self )											//$ update trail (get new trail) by adding self //$
-		val newSpider = spider.copy( trail = newTrail )
-		in.filterNot( in => collected.contains(in) ).foreach ( _ ! (request, newSpider) )							//$ filter on those that "don't" match
-		out.filterNot( out => collected.contains(out) ).foreach ( _ ! (request, newSpider) )
+	def handleTrace(sender: ActorRef, slf: ActorRef, msg: TraceType, time: Long) {
+		collector ! RecordReceived(sender, slf, msg, time)
+		val timing = synchronousDiagnostics(msg)
+		collector ! RecordComplete(msg, timing)
 	}
+
+
+
+	def now = System.nanoTime()
+
+
 
 }

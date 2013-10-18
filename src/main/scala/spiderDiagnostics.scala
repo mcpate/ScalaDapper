@@ -17,55 +17,55 @@ import java.util.UUID
 *	data collection.  It fires messages of type DiagnosticData which is a generic class meant to 
 *	contain the data chunk you want sent back to "spider home".
 **/ 
-trait Diagnostics[Data, Request] extends WebNode[Data, Request] {
+// trait Diagnostics[Data, Request] extends WebNode[Data, Request] {
 
-	override def sendSpiders(spiderHome: ActorRef, data: Data, msg: (Request, Spider), collected: Set[ActorRef]) {
-		spiderHome ! DiagnosticsData[Data](data, now, selfNode)
-		super.sendSpiders(spiderHome, data, msg, collected)	
-	}
+// 	override def sendSpiders(spiderHome: ActorRef, data: Data, msg: (Request, Spider), collected: Set[ActorRef]) {
+// 		spiderHome ! DiagnosticsData[Data](data, now, selfNode)
+// 		super.sendSpiders(spiderHome, data, msg, collected)	
+// 	}
 
-	override def before = diagnoseBefore
-	override def after = diagnoseAfter
+// 	override def before = diagnoseBefore
+// 	override def after = diagnoseAfter
 
-	def diagnoseBefore: Receive
-	def diagnoseAfter: Receive
+// 	def diagnoseBefore: Receive
+// 	def diagnoseAfter: Receive
 
-	def now = System.nanoTime()
-}
-
-
+// 	//def now = System.nanoTime()
+// }
 
 
-/**
-*	This is an actual diagnostic data message including the timestamp of when the diagnostic was taken.
-**/
-case class DiagnosticsData[Data](data: Data, timestamp: Long, nodeRef: WebNodeRef)
 
-/**
-*	The below are "concrete" diagnostics and are built upon the above trait and case class.
-**/
-case class TraceType(uuid: UUID, data: Any)
 
-case class TimeDataRequest(id: Long)
+// /**
+// *	This is an actual diagnostic data message including the timestamp of when the diagnostic was taken.
+// **/
+// case class DiagnosticsData[Data](data: Data, timestamp: Long, nodeRef: WebNodeRef)
 
-trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {
+// /**
+// *	The below are "concrete" diagnostics and are built upon the above trait and case class.
+// **/
+// case class TraceType(uuid: UUID, data: Any)
 
-	private var map = Map[Long, Long]()
-	var timeBefore: Long = 0
+// case class TimeDataRequest(id: Long)
 
-	def diagnoseBefore: Receive = {
-		case m: HasId => timeBefore = now
-		case _ =>
-	}
+// trait TimingDiagnostics extends Diagnostics[(Long, Long), TimeDataRequest] {
 
-	def diagnoseAfter: Receive = {
-		case m: HasId => map = map + ( m.id -> ( now - timeBefore ))
-		case _ =>
-	}
+// 	private var map = Map[Long, Long]()
+// 	var timeBefore: Long = 0
 
-	def collect(req: TimeDataRequest) = map.get( req.id ).map( ( req.id, _ ))
-}
+// 	def diagnoseBefore: Receive = {
+// 		case m: HasId => timeBefore = now
+// 		case _ =>
+// 	}
 
-trait HasId {
-	def id: Long
-}
+// 	def diagnoseAfter: Receive = {
+// 		case m: HasId => map = map + ( m.id -> ( now - timeBefore ))
+// 		case _ =>
+// 	}
+
+// 	def collect(req: TimeDataRequest) = map.get( req.id ).map( ( req.id, _ ))
+// }
+
+// trait HasId {
+// 	def id: Long
+// }
