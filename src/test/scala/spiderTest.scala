@@ -2,6 +2,7 @@
 //import SpiderDiagnostics._
 import SpiderPattern._
 import TraceCollector._
+import SpanTypes._
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 //import akka.dispatch.{Future, Promise, Await}
 import scala.concurrent.{Future, Promise, Await}
@@ -71,7 +72,11 @@ class Printer extends Actor {
 	def receive = {
 		case m: TraceMessage => println( m.text )
 		case m: String => println(m)
-		case _ => println("In Printer - misc. message received")
+		case m: Any => 
+			//println("In Printer - misc. message received")
+			println("\n")
+			println(m)
+			println("\n")
 	}
 }
 
@@ -195,7 +200,9 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with M
 	// println("num results found: " + timeTwo.length)
 	// println("average times for tests: " + ((timeTwo.reduceLeft(_+_)) / (timeTwo.length)) + "ns")
 
-	val traceCollector = system.actorOf(Props[TraceCollector], "TraceCollector")
+	val RemoteAggregatorMock = system.actorOf(Props[Printer], "RemoteAggregatorMock")
+
+	val traceCollector = system.actorOf(Props(new TraceCollector(RemoteAggregatorMock)), "TraceCollector")
 
 
 	println("\nFinal Test\n")
@@ -204,8 +211,8 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with M
 		new Forwarder(anotherTrace) with WebNode {
 			override val collector = traceCollector
 			}), "abcdef")
-	//anotherTrace ! "printer"
-	anotherAnotherTrace ! "hello"
+	for (i <- 1 to 10)
+		anotherAnotherTrace ! "hello"
 
 
 

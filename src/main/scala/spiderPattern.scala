@@ -98,6 +98,7 @@ trait WebNode extends Actor with Node {
 		end
 	}
 
+
 	def handleTrace(sender: ActorRef, slf: ActorRef, traceMsg: TraceType, time: Long) = traceMsg.sampled match {
 		case true =>
 			val msgId = UUID.randomUUID()
@@ -108,7 +109,6 @@ trait WebNode extends Actor with Node {
 		case false =>
 			super.receive(traceMsg.msg)
 	}
-
 
 
 	def now = System.nanoTime()

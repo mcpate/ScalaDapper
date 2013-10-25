@@ -4,6 +4,7 @@ import TraceType._
 import SpanTypes._
 import akka.actor.{ActorRef, Actor}
 import scala.collection.mutable.Map
+import scala.concurrent.duration._
 import java.util.UUID
 
 
@@ -12,7 +13,14 @@ object TraceCollectorMessages {
 	case class RecordComplete(msgId: UUID, traceMsg: TraceType, finalTime: Long)
 }
 
-class TraceCollector extends Actor {
+
+/**
+*	TraceCollector is the local "Node" level collector that all sub-actors send spans to.
+*	The aggregator param is the temporary location that complete spans are sent to. This should
+* 	eventually be a service or external location that aggregates further in preperation for 
+*	Zipkin or other.
+**/
+class TraceCollector(aggregator: ActorRef) extends Actor {
 
 	import TraceCollectorMessages._
 
@@ -31,13 +39,17 @@ class TraceCollector extends Actor {
 		} else {
 			spans += (traceMsg.uuid -> Map(msgId -> PartialSpan(sender, slf, traceMsg.msg, System.nanoTime(), None)))
 		}
-		//pSpans += (msg.uuid -> PartialSpan(sender, slf, msg.msg, System.nanoTime(), None))
 		println("In Trace Collector: partial trace added.")
 	}
 
 
 	def recordComplete(msgId: UUID, traceMsg: TraceType, finalTime: Long) {
 		spans(traceMsg.uuid)(msgId).timeToComplete = Some(finalTime)
+		aggregator ! spans
 		println("In Trace Collector: full trace complete.")
 	}
+
+
+
+
 }
