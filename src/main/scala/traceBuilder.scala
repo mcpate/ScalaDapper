@@ -12,10 +12,10 @@ case class TraceBuilder(sampleRatioUpper: Int) {
 
 	def buildTrace(m: Any) = {
 		if(sampleTrace == true) {
-			println("got one")
+			println("In TraceBuilder: building trace for sampled msg.")
 			TraceType(UUID.randomUUID(), m, true)
 		} else {
-			println("got one")
+			println("In TraceBuilder: building trace for NON-sampled msg.")
 			TraceType(UUID.randomUUID(), m, false)
 		}
 	}	

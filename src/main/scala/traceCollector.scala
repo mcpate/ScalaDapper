@@ -25,11 +25,13 @@ class TraceCollector extends Actor {
 
 	def recordReceived(sender: ActorRef, slf: ActorRef, msg: TraceType, currTime: Long) {
 		pSpans += (msg.uuid -> PartialSpan(sender, slf, msg.msg, System.nanoTime(), None))
+		println("In Trace Collector: partial trace added.")
 	}
 
+	
 	def recordComplete(msg: TraceType, finalTime: Long) {
 		pSpans(msg.uuid).timeToComplete = Some(finalTime)
-		println("Partial Trace Complete")
+		println("In Trace Collector: full trace complete.")
 	}
 }
 
