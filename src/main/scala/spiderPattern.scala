@@ -7,9 +7,9 @@ import scala.collection.mutable
 import java.util.UUID
 
 
-case class Spider(home: ActorRef, trail: WebTrail = WebTrail())
-case class WebTrail(collected: Set[ActorRef] = Set(), uuid: UUID = UUID.randomUUID())
-case class WebNodeRef(node: ActorRef, in: List[ActorRef], out: List[ActorRef])
+//#case class Spider(home: ActorRef, trail: WebTrail = WebTrail())
+//#case class WebTrail(collected: Set[ActorRef] = Set(), uuid: UUID = UUID.randomUUID())
+//#case class WebNodeRef(node: ActorRef, in: List[ActorRef], out: List[ActorRef])
 /**
 *	We want to override Akka's default methods but since we don't have access
 *	to all pieces of the classes (ActorRef, ActorContext) involved, we're instead
@@ -31,7 +31,7 @@ trait WebNode extends Actor with Node {
 
 	import TraceCollectorMessages._
 
-	protected val collector = context.actorOf(Props[TraceCollector], "collector")
+	protected val collector: ActorRef
 
 	protected val traceBuilder = TraceBuilder(10000)
 
@@ -42,7 +42,6 @@ trait WebNode extends Actor with Node {
 
 	// pathways going out of the node
 	protected val out = mutable.Set[ActorRef]()
-
 
 	/**
 	*	The following 4 methods override those defined in trait Node.

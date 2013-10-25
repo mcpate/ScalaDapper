@@ -28,13 +28,16 @@ class TraceCollector extends Actor {
 		println("In Trace Collector: partial trace added.")
 	}
 
-	
+
 	def recordComplete(msg: TraceType, finalTime: Long) {
 		pSpans(msg.uuid).timeToComplete = Some(finalTime)
 		println("In Trace Collector: full trace complete.")
 	}
 }
 
+// object TraceCollector {
+	
+// }
 
 
 
