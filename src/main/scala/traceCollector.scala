@@ -45,7 +45,7 @@ class TraceCollector(aggregator: ActorRef) extends Actor {
 
 	def recordComplete(msgId: UUID, traceMsg: TraceType, finalTime: Long) {
 		spans(traceMsg.uuid)(msgId).timeToComplete = Some(finalTime)
-		aggregator ! spans
+		aggregator ! (traceMsg.uuid, spans(traceMsg.uuid)(msgId))
 		println("In Trace Collector: full trace complete.")
 	}
 
