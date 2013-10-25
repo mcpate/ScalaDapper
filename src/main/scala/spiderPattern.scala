@@ -7,9 +7,6 @@ import scala.collection.mutable
 import java.util.UUID
 
 
-//#case class Spider(home: ActorRef, trail: WebTrail = WebTrail())
-//#case class WebTrail(collected: Set[ActorRef] = Set(), uuid: UUID = UUID.randomUUID())
-//#case class WebNodeRef(node: ActorRef, in: List[ActorRef], out: List[ActorRef])
 /**
 *	We want to override Akka's default methods but since we don't have access
 *	to all pieces of the classes (ActorRef, ActorContext) involved, we're instead
@@ -87,13 +84,10 @@ trait WebNode extends Actor with Node {
 	abstract override def receive = wrappedReceive						
 	
 	
-	//case class RSWrap(req: Request, spi: Spider)
 	def wrappedReceive: Receive = {
-		case m: TraceType if m.sampled == true => handleTrace(sender, selfRef, m, now)
-		case m: TraceType => super.receive(m.msg)
+		case m: TraceType => handleTrace(sender, selfRef, m, now)
 		case m: Any => 
-			val tracedMsg = traceBuilder.buildTrace(m)
-			handleTrace(sender, selfRef, tracedMsg, now)
+			handleTrace(sender, selfRef, traceBuilder.buildTrace(m), now)
 	}
 
 
@@ -104,10 +98,15 @@ trait WebNode extends Actor with Node {
 		end
 	}
 
-	def handleTrace(sender: ActorRef, slf: ActorRef, msg: TraceType, time: Long) {
-		collector ! RecordReceived(sender, slf, msg, time)
-		val timing = synchronousDiagnostics(msg)
-		collector ! RecordComplete(msg, timing)
+	def handleTrace(sender: ActorRef, slf: ActorRef, traceMsg: TraceType, time: Long) = traceMsg.sampled match {
+		case true =>
+			val msgId = UUID.randomUUID()
+			collector ! RecordReceived(msgId, sender, slf, traceMsg, time)
+			val timing = synchronousDiagnostics(traceMsg)
+			collector ! RecordComplete(msgId, traceMsg, timing)
+
+		case false =>
+			super.receive(traceMsg.msg)
 	}
 
 

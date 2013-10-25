@@ -8,7 +8,7 @@ import java.util.UUID
 case class TraceBuilder(sampleRatioUpper: Int) {
 
 	// rate (.01f = 1%) per 10,000 msgs (see sampleTrace)
-	val sampleRatioPercent = 1f
+	val sampleRatioPercent = 0.5f
 
 	def buildTrace(m: Any) = {
 		if(sampleTrace == true) {
