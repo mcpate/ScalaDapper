@@ -206,13 +206,22 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with M
 
 
 	println("\nFinal Test\n")
-	val anotherTrace = system.actorOf(Props[Printer], "anotherTrace")
-	val anotherAnotherTrace = system.actorOf(Props(
-		new Forwarder(anotherTrace) with WebNode {
+	val printer = system.actorOf(Props[Printer], "printer")
+	
+	val lastForwarder = system.actorOf(Props(
+		new Forwarder(printer) with WebNode {
 			override val collector = traceCollector
-			}), "abcdef")
+			}), "lastForwarder")
+	
+	val secondToLastForwarder = system.actorOf(Props(
+		new Forwarder(lastForwarder) with WebNode {
+			override val collector = traceCollector
+			}), "2ndToLast")
+	
 	for (i <- 1 to 10)
-		anotherAnotherTrace ! "hello"
+		secondToLastForwarder ! "hello"
+
+
 
 
 
