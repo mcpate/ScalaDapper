@@ -39,14 +39,14 @@ class TraceCollector(aggregator: ActorRef) extends Actor {
 		} else {
 			spans += (traceMsg.uuid -> Map(msgId -> PartialSpan(sender, slf, traceMsg.msg, System.nanoTime(), None)))
 		}
-		println("In Trace Collector: partial trace added.")
+		//println("In Trace Collector: partial trace added.")
 	}
 
 
 	def recordComplete(msgId: UUID, traceMsg: TraceType, finalTime: Long) {
 		spans(traceMsg.uuid)(msgId).timeToComplete = Some(finalTime)
 		aggregator ! (traceMsg.uuid, spans(traceMsg.uuid)(msgId))
-		println("In Trace Collector: full trace complete.")
+		//println("In Trace Collector: full trace complete.")
 	}
 
 

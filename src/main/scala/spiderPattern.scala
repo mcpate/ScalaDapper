@@ -18,6 +18,7 @@ trait Node { actor: Actor =>
 	def forward(actorRef: ActorRef, m: Any) { actorRef.forward(m) }
 	def actorOf(props: Props): ActorRef = actor.context.actorOf(props)
 	def actorFor(actorPath: ActorPath): ActorRef = actor.context.actorFor(actorPath)
+	def !(actorRef: ActorRef, m: Any) { actorRef ! m }
 }
 
 /**
@@ -28,53 +29,67 @@ trait WebNode extends Actor with Node {
 
 	import TraceCollectorMessages._
 
+	// address of where to send traces to
 	protected val collector: ActorRef
 
+	// builds traces for messages that come in naked.
 	protected val traceBuilder = TraceBuilder(10000)
 
 	protected val selfRef = self
 
+	// where we store the trace while passing the message to super class
+	// this should get re-applied to the message once the super uses "!"
+	protected var waitingTrace: Option[TraceType] = None
+
+
 	// pathways coming into the node
-	protected val in = mutable.Set[ActorRef]()												//$ Protected methods and variables are only accessible by classes or traits that explicitly mix them in //$
+	//protected val in = mutable.Set[ActorRef]()												
 
 	// pathways going out of the node
-	protected val out = mutable.Set[ActorRef]()
+	//protected val out = mutable.Set[ActorRef]()
 
 	/**
 	*	The following 4 methods override those defined in trait Node.
 	*   They follow the pattern of: recording ActorRef, passing message on.
 	**/
 	override def send(actorRef: ActorRef, m: Any) {
-		recordOutput(actorRef)
-		actorRef ! (m, self)																//$ Note that " ! " and " tell " are the same thing //$
+	//	recordOutput(actorRef)
+		actorRef ! (m, self)																
 	}
 
 	override def reply(m: Any) {
-		recordOutput(sender)
+	//	recordOutput(sender)
 		sender ! m
 	}
 
 	override def forward(actorRef: ActorRef, m: Any) {
-		recordOutput(actorRef)
+	//	recordOutput(actorRef)
 		actorRef forward m
 	}
 
-	override def actorOf(props: Props): ActorRef = {										//$ Used for tracking creation of child actors //$
+	override def actorOf(props: Props): ActorRef = {										
 		val actorRef = context.actorOf(props)
-		recordOutput(actorRef)
+	//	recordOutput(actorRef)
 		actorRef
+	}
+
+	override def !(actorRef: ActorRef, m: Any) {
+		waitingTrace match {
+			case Some(traceMsg) => 	actorRef ! traceMsg
+			case _ => actorRef ! m
+		}
 	}
 
 	/**
 	*	The following two methods are responsible for recording actors in and out.
 	**/
-	def recordOutput(actorRef: ActorRef) {
-		out.add(actorRef)
-	}
+	// def recordOutput(actorRef: ActorRef) {
+	// 	out.add(actorRef)
+	// }
 
-	def recordInput(actorRef: ActorRef) {
-		in.add(actorRef)
-	}
+	// def recordInput(actorRef: ActorRef) {
+	// 	in.add(actorRef)
+	// }
 
 
 	/**
@@ -91,9 +106,9 @@ trait WebNode extends Actor with Node {
 	}
 
 
-	def synchronousDiagnostics(msg: TraceType): Long = {
+	def synchronousDiagnostics(msg: Any): Long = {
 		val start = now
-		super.receive(msg.msg)
+		super.receive(msg)
 		val end = now - start
 		end
 	}
@@ -103,10 +118,11 @@ trait WebNode extends Actor with Node {
 		case true =>
 			val msgId = UUID.randomUUID()
 			collector ! RecordReceived(msgId, sender, slf, traceMsg, time)
-			val timing = synchronousDiagnostics(traceMsg)
+			waitingTrace = Some(traceMsg)
+			val timing = synchronousDiagnostics(traceMsg.msg)
 			collector ! RecordComplete(msgId, traceMsg, timing)
-
 		case false =>
+			waitingTrace = Some(traceMsg)
 			super.receive(traceMsg.msg)
 	}
 

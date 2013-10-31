@@ -3,6 +3,7 @@
 import SpiderPattern._
 import TraceCollector._
 import SpanTypes._
+import TraceType._
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 //import akka.dispatch.{Future, Promise, Await}
 import scala.concurrent.{Future, Promise, Await}
@@ -74,9 +75,16 @@ class Printer extends Actor {
 		case m: String => println(m)
 		case m: Any => 
 			//println("In Printer - misc. message received")
-			println("\n")
+			//println("\n")
 			println(m)
-			println("\n")
+			//println("\n")
+	}
+}
+
+class TraceCatcher extends Actor {
+	def receive = {
+		case m: TraceType => println("TraceCatcher - Caught a trace.")
+		case _ => println("TraceCatcher - caught something other than a trace.")
 	}
 }
 
@@ -200,30 +208,51 @@ class SpiderTest extends TestKit(ActorSystem("spider")) with WordSpecLike with M
 	// println("num results found: " + timeTwo.length)
 	// println("average times for tests: " + ((timeTwo.reduceLeft(_+_)) / (timeTwo.length)) + "ns")
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 	val RemoteAggregatorMock = system.actorOf(Props[Printer], "RemoteAggregatorMock")
 
 	val traceCollector = system.actorOf(Props(new TraceCollector(RemoteAggregatorMock)), "TraceCollector")
 
 
-	println("\nFinal Test\n")
-	val printer = system.actorOf(Props[Printer], "printer")
+	// println("\nTesting building of spans...........................\n")
+	// val printer = system.actorOf(Props[Printer], "printer")
 	
-	val lastForwarder = system.actorOf(Props(
-		new Forwarder(printer) with WebNode {
+	// val lastForwarder = system.actorOf(Props(
+	// 	new Forwarder(printer) with WebNode {
+	// 		override val collector = traceCollector
+	// 		}), "lastForwarder")
+	
+	// val secondToLastForwarder = system.actorOf(Props(
+	// 	new Forwarder(lastForwarder) with WebNode {
+	// 		override val collector = traceCollector
+	// 		}), "2ndToLast")
+	
+	// for (i <- 1 to 2)
+	// 	secondToLastForwarder ! "FIRST TEST"
+
+
+
+
+
+	println("\nTesting Forwarding with re-wrap of Trace.......................")
+
+	val traceCatcher = system.actorOf(Props[TraceCatcher], "traceCatcher")
+	val forwardTrace = system.actorOf(Props(
+		new Forwarder(traceCatcher) with WebNode {
 			override val collector = traceCollector
-			}), "lastForwarder")
-	
-	val secondToLastForwarder = system.actorOf(Props(
-		new Forwarder(lastForwarder) with WebNode {
-			override val collector = traceCollector
-			}), "2ndToLast")
-	
-	for (i <- 1 to 10)
-		secondToLastForwarder ! "hello"
+			}), "forwardTrace")
 
-
-
-
-
-
+	forwardTrace ! "SECOND TEST"
 }
